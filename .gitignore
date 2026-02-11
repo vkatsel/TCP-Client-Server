@@ -1,0 +1,14 @@
+/packages/
+riderModule.iml
+/_ReSharper.Caches/
+.idea/
+*.user
+*.userosscache
+*.sln.docstates
+**/bin/
+**/obj/
+*.suo
+*.user
+# Rider/ReSharper
+*.sln.DotSettings.user
+_ReSharper.Caches/
