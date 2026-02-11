@@ -4,6 +4,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Client", "Client\Client.csp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Server", "Server\Server.csproj", "{73983564-C9B1-42E4-A1CF-31F3EE8B91DA}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "images-and-stuff", "images-and-stuff", "{2F5A88F9-5EC8-4ABD-88AC-8679172B9A63}"
+	ProjectSection(SolutionItems) = preProject
+		C:\Users\User\Documents\demo-protocol-VSP.png = C:\Users\User\Documents\demo-protocol-VSP.png
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
