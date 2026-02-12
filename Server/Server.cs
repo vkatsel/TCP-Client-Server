@@ -6,6 +6,8 @@ namespace Server;
 
 class Server
 {
+    private const string Greeting = "Welcome to the server! ✪ ω ✪" +
+                                    "Connected successfully.";
     static void Main(string[] args)
     {
         IPAddress serverIp = IPAddress.Loopback;
@@ -17,19 +19,85 @@ class Server
         while (true)
         {
             TcpClient client = server.AcceptTcpClient();
-            NetworkStream ns = client.GetStream();
-            
-            byte[] greeting = new byte[100];
-            greeting = Encoding.Default.GetBytes("Welcome to the server!");
+            Console.WriteLine($"[INFO] Client connected!");
 
-            ns.Write(greeting, 0, greeting.Length);
+            HandleClient(client);
+        }
+    }
 
-            while (client.Connected)
+    static void HandleClient(TcpClient client)
+    {
+        NetworkStream ns = client.GetStream();
+        var isConnected = client.Connected;
+        BinaryReader reader = new BinaryReader(ns);
+        BinaryWriter writer = new BinaryWriter(ns);
+        
+        writer.Write(Greeting);
+        
+        while (isConnected)
+        {
+            try
             {
-                byte[] msg = new byte[1024];
-                ns.Read(msg, 0, msg.Length);
-                Console.WriteLine(Encoding.UTF8.GetString(msg));
+                byte commandId = reader.ReadByte();
+                switch (commandId)
+                {
+                    case 1:
+                        Console.WriteLine($"[INFO] Get command received. ");
+                        string filepath = reader.ReadString();
+                        HandleGet(filepath, writer);
+                        break;
+                    case 2:
+                        break;
+                    case 3:
+                        break;
+                    case 4:
+                        break;
+                    case 5:
+                        break;
+                    case 0:
+                        isConnected = false;
+                        Console.WriteLine($"[INFO] Closing the connection. Command id {commandId}");
+                        break;
+                }
+            }
+            catch (EndOfStreamException e)
+            {
+                Console.WriteLine($"[ERROR] Stream Error: {e.Message}");
+                isConnected = false;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"[ERROR] Error arose: {e.Message}");
+                isConnected = false;
+            }
+        } client.Close();
+    }
+
+    static void HandleGet(string filepath, BinaryWriter writer)
+    {
+        if (!File.Exists(filepath))
+        {
+            writer.Write(false);
+            writer.Write("[ERROR] The specified file does not exist. Error code 100.");
+            return;
+        }
+        
+        writer.Write(true);
+
+        long fileSize = new FileInfo(filepath).Length;
+        writer.Write(fileSize);
+
+        using (FileStream fileStream = new FileStream(filepath, FileMode.Open, FileAccess.Read))
+        {
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+
+            while ((bytesRead = fileStream.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                writer.Write(buffer, 0, bytesRead);
+                writer.Flush();
             }
         }
+        Console.WriteLine("[INFO] File transmission complete");
     }
 }
