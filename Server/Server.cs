@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Globalization;
+using System.Net;
 using System.Net.Sockets;
 namespace Server;
 
@@ -49,14 +50,20 @@ class Server
                         HandleGet(filename, writer);
                         break;
                     case 2:
-                        Console.WriteLine($"[INFO] LIST command recieved");
+                        Console.WriteLine($"[INFO] LIST command received");
                         HandleList(writer);
                         break;
                     case 3:
                         break;
                     case 4:
+                        Console.WriteLine($"[INFO] DELETE command received");
+                        filename = reader.ReadString();
+                        HandleDelete(filename, writer);
                         break;
                     case 5:
+                        Console.WriteLine($"[INFO] INFO command received");
+                        filename = reader.ReadString();
+                        HandleInfo(filename, writer);
                         break;
                     case 0:
                         isConnected = false;
@@ -117,5 +124,75 @@ class Server
             writer.Write(Path.GetFileName(file));
         }
         Console.WriteLine("[INFO] LIST operation executed");
+    }
+
+    private static void HandleDelete(string filename, BinaryWriter writer)
+    {
+        string path = Path.Combine(StoragePath, filename);
+        if (!File.Exists(path))
+        {
+            writer.Write(false);
+            writer.Write("[ERROR] The specified file does not exist. Error code 100.");
+            return;
+        }
+        
+        writer.Write(true);
+
+        try
+        {
+            File.Delete(path);
+            Console.WriteLine($"[INFO] {path} deleted successfully");
+            writer.Write($"File {path} deleted successfully");
+        }
+        catch (IOException ex)
+        {
+            Console.WriteLine($"[ERROR] File is accessed by another process: {ex.Message}");
+            writer.Write(false);
+            writer.Write($"[ERROR] File is accessed by another process: {ex.Message}");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Console.WriteLine($"[ERROR] No rights to access this file: {ex.Message}");
+            writer.Write(false);
+            writer.Write($"[ERROR] No rights to access this file: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ERROR] Something went wrong: {ex.Message}");
+            writer.Write(false);
+            writer.Write($"[ERROR] Something went wrong: {ex.Message}");
+        }
+    }
+
+    private static void HandleInfo(string filename, BinaryWriter writer)
+    {
+        string path = Path.Combine(StoragePath, filename);
+        if (!File.Exists(path))
+        {
+            writer.Write(false);
+            writer.Write("[ERROR] The specified file does not exist. Error code 100.");
+            return;
+        }
+        
+        FileInfo fileInfo = new FileInfo(path);
+        if (fileInfo.Exists)
+        {
+            var metaData = new 
+            {
+                Name = fileInfo.Name,
+                Size = fileInfo.Length,
+                Created = fileInfo.CreationTimeUtc,
+                Modified = fileInfo.LastWriteTimeUtc,
+                Extension = fileInfo.Extension
+            };
+            string json = System.Text.Json.JsonSerializer.Serialize(metaData);
+            writer.Write(true);
+            writer.Write(json);
+        }
+        else
+        {
+            writer.Write(false);
+            writer.Write($"[ERROR] File {filename} metadata is not available. Error code 101");
+        }
     }
 }

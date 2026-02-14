@@ -1,7 +1,6 @@
 ﻿using System.Net;
 using System.Net.Sockets;
-using System.Reflection.Metadata;
-using System.Text;
+using System.Text.Json.Nodes;
 
 namespace Client;
 
@@ -27,6 +26,7 @@ class Client
             
             while (true)
             {
+                Thread.Sleep(2000);
                 Console.WriteLine(Manual);
                 
                 string input = Console.ReadLine();
@@ -52,8 +52,12 @@ class Client
                         
                         cmdId = 1;
                         writer.Write(cmdId);
-                        writer.Write(cmd[1]);
-
+                        if (!string.IsNullOrEmpty(cmd[1])) writer.Write(cmd[1]);
+                        else {
+                            Console.WriteLine("[WARNING] Path cannot be empty!");
+                            break;
+                        }
+                        
                         HandleGet(reader, cmd);
                         break;
                     case "LIST":
@@ -66,17 +70,31 @@ class Client
                         Console.WriteLine("Ooops. Is not supported yet 🏗️");
                         break;
                     case "DELETE":
-                        Console.WriteLine("Ooops. Is not supported yet 🏗️");
+                        cmdId = 4;
+                        writer.Write(cmdId);
+                        if (!string.IsNullOrEmpty(cmd[1])) writer.Write(cmd[1]);
+                        else {
+                            Console.WriteLine("[WARNING] Path cannot be empty!");
+                            break;
+                        }
+                        HandleDelete(reader);
                         break;
                     case "INFO":
-                        Console.WriteLine("Ooops. Is not supported yet 🏗️");
+                        cmdId = 5;
+                        writer.Write(cmdId);
+                        if (!string.IsNullOrEmpty(cmd[1])) writer.Write(cmd[1]);
+                        else {
+                            Console.WriteLine("[WARNING] Path cannot be empty!");
+                            break;
+                        }
+                        HandleInfo(cmd[1], reader);
                         break;
                     case "EXIT":
                         Console.WriteLine("Closing the connection...");
                         client.Close();
                         return;
                     default:
-                        Console.WriteLine("[INFO] Command doesn't exist :(");
+                        Console.WriteLine("[INFO] This command doesn't exist :(");
                         break;
                 }
             }
@@ -101,17 +119,17 @@ class Client
             {
                 byte[] buffer = new byte[4096];
                 long totalBytesRead = 0;
-                int bytesRead;
 
                 while (totalBytesRead < fileSize)
                 {
                     int bytesToRead = (int)Math.Min(buffer.Length, fileSize - totalBytesRead);
-                    reader.Read(buffer, 0, bytesToRead);
-                    if (bytesToRead == 0) 
+                    int bytesReceived = reader.Read(buffer, 0, bytesToRead);
+
+                    if (bytesToRead == 0 || bytesReceived == 0) 
                         break;
                                     
-                    fileStream.Write(buffer, 0, bytesToRead);
-                    totalBytesRead += bytesToRead;
+                    fileStream.Write(buffer, 0, bytesReceived);
+                    totalBytesRead += bytesReceived;
                     Console.Write($"\rProgress: {totalBytesRead}/{fileSize}");
                 }
                 Console.WriteLine("\n[SUCCESS] File downloaded!");
@@ -133,6 +151,48 @@ class Client
                 string filename = reader.ReadString();
                 Console.WriteLine($"{i}. {filename}");
             }   
+        }
+        else
+        {
+            string errorMsg = reader.ReadString();
+            Console.WriteLine($"[SERVER] {errorMsg}");
+        }
+    }
+
+    private static void HandleDelete(BinaryReader reader)
+    {
+        if (reader.ReadBoolean())
+        {
+            string successMsg = reader.ReadString();
+            Console.WriteLine(successMsg);
+        }
+        else
+        {
+            string errorMsg = reader.ReadString();
+            Console.WriteLine($"[SERVER] {errorMsg}");
+        }
+    }
+
+    private static void HandleInfo(string filename, BinaryReader reader)
+    {
+        if (reader.ReadBoolean())
+        {
+             Console.WriteLine($"=== {filename} metadata:");
+             string json = reader.ReadString();
+             try
+             {
+                 JsonNode data = JsonNode.Parse(json);
+                 Console.WriteLine($"- Name: {data["Name"]}");
+                 Console.WriteLine($"- Size: {data["Size"]}");
+                 Console.WriteLine($"- Extension: {data["Extension"]}");
+                 Console.WriteLine($"- Modified: {data["Modified"]}");
+                 Console.WriteLine($"- Created: {data["Created"]}");
+             }
+             catch (Exception ex)
+             {
+                 Console.WriteLine($"[ERROR] JSON Parsing failed: {ex.Message}");
+                 Console.WriteLine($"Raw data: {json}");
+             }
         }
         else
         {
