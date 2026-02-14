@@ -1,15 +1,16 @@
 ﻿using System.Net;
 using System.Net.Sockets;
-using System.Text;
-
 namespace Server;
 
 class Server
 {
     private const string Greeting = "Welcome to the server! ✪ ω ✪" +
                                     "Connected successfully.";
+    private static readonly string StoragePath = Path.Combine(Directory.GetCurrentDirectory(), "Storage");
     static void Main(string[] args)
     {
+        Directory.CreateDirectory(StoragePath);
+        
         IPAddress serverIp = IPAddress.Loopback;
         int serverPort = 1234;
         TcpListener server = new TcpListener(serverIp, serverPort);
@@ -39,14 +40,17 @@ class Server
             try
             {
                 byte commandId = reader.ReadByte();
+                string filename;
                 switch (commandId)
                 {
                     case 1:
-                        Console.WriteLine($"[INFO] Get command received. ");
-                        string filepath = reader.ReadString();
-                        HandleGet(filepath, writer);
+                        Console.WriteLine($"[INFO] GET command received. ");
+                        filename = reader.ReadString();
+                        HandleGet(filename, writer);
                         break;
                     case 2:
+                        Console.WriteLine($"[INFO] LIST command recieved");
+                        HandleList(writer);
                         break;
                     case 3:
                         break;
@@ -73,9 +77,10 @@ class Server
         } client.Close();
     }
 
-    static void HandleGet(string filepath, BinaryWriter writer)
+    private static void HandleGet(string filename, BinaryWriter writer)
     {
-        if (!File.Exists(filepath))
+        string path = Path.Combine(StoragePath, filename);
+        if (!File.Exists(path))
         {
             writer.Write(false);
             writer.Write("[ERROR] The specified file does not exist. Error code 100.");
@@ -84,10 +89,10 @@ class Server
         
         writer.Write(true);
 
-        long fileSize = new FileInfo(filepath).Length;
+        long fileSize = new FileInfo(path).Length;
         writer.Write(fileSize);
 
-        using (FileStream fileStream = new FileStream(filepath, FileMode.Open, FileAccess.Read))
+        using (FileStream fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
         {
             byte[] buffer = new byte[4096];
             int bytesRead;
@@ -99,5 +104,18 @@ class Server
             }
         }
         Console.WriteLine("[INFO] File transmission complete");
+    }
+
+    private static void HandleList(BinaryWriter writer)
+    {
+        writer.Write(true);
+
+        string[] files = Directory.GetFiles(StoragePath);
+        writer.Write(files.Length);
+        foreach (string file in files)
+        {
+            writer.Write(Path.GetFileName(file));
+        }
+        Console.WriteLine("[INFO] LIST operation executed");
     }
 }
