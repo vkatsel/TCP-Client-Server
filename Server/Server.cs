@@ -17,6 +17,10 @@ class Server
         TcpListener server = new TcpListener(serverIp, serverPort);
         
         server.Start();
+        IPEndPoint localEndPoint = (IPEndPoint)server.LocalEndpoint;
+        
+        Console.WriteLine("[INFO] The server is started!");
+        Console.WriteLine($"[INFO] Listening on {localEndPoint.Address}:{localEndPoint.Port}");
 
         while (true)
         {
