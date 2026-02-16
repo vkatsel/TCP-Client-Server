@@ -17,6 +17,7 @@ class Client
     {
         try
         {
+            Directory.CreateDirectory("Storage");
             TcpClient client = new TcpClient(IPAddress.Loopback.ToString(), 1234);
             NetworkStream ns = client.GetStream();
             BinaryWriter writer = new BinaryWriter(ns);
@@ -34,10 +35,16 @@ class Client
                 string[] cmd = input.Split(" ");
 
                 byte cmdId;
+                string localPath;
                 switch (cmd[0].ToUpper())
                 {
                     case "GET":
-                        string localPath = Path.Combine("Downloads", cmd[1]);
+                        if (!string.IsNullOrEmpty(cmd[1])) {localPath = Path.Combine("Storage", cmd[1]);}
+                        else
+                        {
+                            Console.WriteLine("[WARNING] Path cannot be empty!");
+                            break;
+                        }
                         if (File.Exists(localPath))
                         {
                             Console.Write($"[WARNING] File '{cmd[1]}' already exist. Overwrite? (y/n): ");
@@ -52,11 +59,7 @@ class Client
                         
                         cmdId = 1;
                         writer.Write(cmdId);
-                        if (!string.IsNullOrEmpty(cmd[1])) writer.Write(cmd[1]);
-                        else {
-                            Console.WriteLine("[WARNING] Path cannot be empty!");
-                            break;
-                        }
+                        writer.Write(cmd[1]);
                         
                         HandleGet(reader, cmd);
                         break;
@@ -67,7 +70,25 @@ class Client
                         HandleList(reader);
                         break;
                     case "PUT":
-                        Console.WriteLine("Ooops. Is not supported yet 🏗️");
+                        if (!string.IsNullOrEmpty(cmd[1])) {localPath = Path.Combine("Storage", cmd[1]);}
+                        else
+                        {
+                            Console.WriteLine("[WARNING] Path cannot be empty!");
+                            break;
+                        }
+                        
+                        if (!File.Exists(localPath))
+                        {
+                            Console.Write($"[WARNING] File '{cmd[1]}' does not exist. Operation Cancelled");
+                            break;
+                        }
+                        
+                        cmdId = 3;
+                        writer.Write(cmdId);
+                        writer.Write(cmd[1]);
+
+                        HandlePut(writer, reader, localPath);
+                        
                         break;
                     case "DELETE":
                         cmdId = 4;
@@ -105,14 +126,42 @@ class Client
         }
     }
 
+    private static void HandlePut(BinaryWriter writer, BinaryReader reader, string localPath)
+    {
+        FileInfo fileInfo = new FileInfo(localPath);
+        writer.Write(fileInfo.Length);
+        
+        Console.WriteLine("[INFO] Uploading...");
+        using (FileStream fileStream = File.OpenRead(localPath))
+        {
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+
+            while ((bytesRead = fileStream.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                writer.Write(buffer, 0, bytesRead);
+                writer.Flush();
+            }
+        }
+
+        if (reader.ReadBoolean())
+        {
+            Console.WriteLine($"[SUCCESS] {reader.ReadString()}");
+        }
+        else
+        {
+            Console.WriteLine($"[ERROR] {reader.ReadString()}");
+        }
+    }
+
     private static void HandleGet(BinaryReader reader, string[] cmd)
     {
         if (reader.ReadBoolean())
         {
-            string path = Path.Combine("Downloads", cmd[1]);
+            string path = Path.Combine("Storage", cmd[1]);
             
             long fileSize = reader.ReadInt64();
-            Directory.CreateDirectory("Downloads");
+            Directory.CreateDirectory("Storage");
             Console.WriteLine($"[INFO] Downloading file '{cmd[1]}' ({fileSize} bytes)...");
 
             using (FileStream fileStream = File.Create(path))

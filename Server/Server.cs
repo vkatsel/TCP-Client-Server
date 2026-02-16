@@ -54,6 +54,10 @@ class Server
                         HandleList(writer);
                         break;
                     case 3:
+                        Console.WriteLine($"[INFO] PUT command received");
+                        filename = reader.ReadString();
+                        long filesize = reader.ReadInt64();
+                        HandlePut(filename, filesize, reader, writer);
                         break;
                     case 4:
                         Console.WriteLine($"[INFO] DELETE command received");
@@ -84,6 +88,43 @@ class Server
         } client.Close();
     }
 
+    private static void HandlePut(string filename, long filesize, BinaryReader reader, BinaryWriter writer)
+    {
+        string path = Path.Combine(StoragePath, filename);
+
+        try
+        {
+            using (FileStream fs = File.Create(path))
+            {
+                byte[] buffer = new byte[4096];
+                long totalBytesRead = 0;
+                
+                while (totalBytesRead < filesize)
+                {
+                    int bytesToRead = (int)Math.Min(buffer.Length, filesize - totalBytesRead);
+                    int bytesReceived = reader.Read(buffer, 0, bytesToRead);
+
+                    if (bytesToRead == 0 || bytesReceived == 0) 
+                        throw new Exception("Transmission failed: Connection error");
+                                    
+                    fs.Write(buffer, 0, bytesReceived);
+                    totalBytesRead += bytesReceived;
+                    Console.Write($"\rProgress: {totalBytesRead}/{filesize}");
+                }
+                writer.Write(true);
+                writer.Write("\n[SERVER] File uploaded!");
+                Console.WriteLine("\n[SUCCESS] File uploaded!");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ERROR] Something went wrong: {ex.Message}");
+            writer.Write(false);
+            writer.Write($"[Server] Something went wrong: {ex.Message}");
+            File.Delete(path);
+        }
+    }
+
     private static void HandleGet(string filename, BinaryWriter writer)
     {
         string path = Path.Combine(StoragePath, filename);
@@ -99,7 +140,7 @@ class Server
         long fileSize = new FileInfo(path).Length;
         writer.Write(fileSize);
 
-        using (FileStream fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
+        using (FileStream fileStream = File.OpenRead(path))
         {
             byte[] buffer = new byte[4096];
             int bytesRead;
@@ -136,13 +177,12 @@ class Server
             return;
         }
         
-        writer.Write(true);
-
         try
         {
             File.Delete(path);
-            Console.WriteLine($"[INFO] {path} deleted successfully");
-            writer.Write($"File {path} deleted successfully");
+            Console.WriteLine($"[INFO] {Path.GetFileName(path)} deleted successfully");
+            writer.Write(true);
+            writer.Write($"File {Path.GetFileName(path)} deleted successfully");
         }
         catch (IOException ex)
         {
