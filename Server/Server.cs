@@ -11,7 +11,7 @@ class Server
     static void Main(string[] args)
     {
         IPAddress serverIp = IPAddress.Loopback;
-        int serverPort = 1488;
+        int serverPort = 1500;
         TcpListener server = new TcpListener(serverIp, serverPort);
         
         server.Start();

@@ -18,7 +18,7 @@ class Client
         try
         {
             Directory.CreateDirectory("Storage");
-            TcpClient client = new TcpClient(IPAddress.Loopback.ToString(), 1488);
+            TcpClient client = new TcpClient(IPAddress.Loopback.ToString(), 1500);
             NetworkStream ns = client.GetStream();
             BinaryWriter writer = new BinaryWriter(ns);
             BinaryReader reader = new BinaryReader(ns);
