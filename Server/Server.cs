@@ -6,19 +6,17 @@ namespace Server;
 class Server
 {
     private const string Greeting = "Welcome to the server! ✪ ω ✪" +
-                                    "Connected successfully.";
-    private static readonly string StoragePath = Path.Combine(Directory.GetCurrentDirectory(), "Storage");
+                                    "Please, enter your name to continue: ";
+    private static readonly string Root = Directory.GetCurrentDirectory();
     static void Main(string[] args)
     {
-        Directory.CreateDirectory(StoragePath);
-        
         IPAddress serverIp = IPAddress.Loopback;
-        int serverPort = 1234;
+        int serverPort = 1488;
         TcpListener server = new TcpListener(serverIp, serverPort);
         
         server.Start();
-        IPEndPoint localEndPoint = (IPEndPoint)server.LocalEndpoint;
         
+        IPEndPoint localEndPoint = (IPEndPoint)server.LocalEndpoint;
         Console.WriteLine("[INFO] The server is started!");
         Console.WriteLine($"[INFO] Listening on {localEndPoint.Address}:{localEndPoint.Port}");
 
@@ -27,7 +25,8 @@ class Server
             TcpClient client = server.AcceptTcpClient();
             Console.WriteLine($"[INFO] Client connected!");
 
-            HandleClient(client);
+            Thread thread = new Thread(() => HandleClient(client));
+            thread.Start();
         }
     }
 
@@ -40,62 +39,76 @@ class Server
         
         writer.Write(Greeting);
         
+        var clientName = reader.ReadString();
+        var localPath = Path.Combine(Root, clientName);
+
+        if (!Directory.Exists(localPath)) Directory.CreateDirectory(localPath);
+        
         while (isConnected)
         {
             try
             {
                 byte commandId = reader.ReadByte();
-                string filename;
+                string fullPath;
                 switch (commandId)
                 {
                     case 1:
-                        Console.WriteLine($"[INFO] GET command received. ");
-                        filename = reader.ReadString();
-                        HandleGet(filename, writer);
+                        Console.WriteLine($"[INFO][{clientName}] GET command received. ");
+                        fullPath = Path.Combine(localPath, Path.GetFileName(reader.ReadString()));
+                        HandleGet(fullPath, writer);
                         break;
                     case 2:
-                        Console.WriteLine($"[INFO] LIST command received");
-                        HandleList(writer);
+                        Console.WriteLine($"[INFO][{clientName}] LIST command received");
+                        HandleList(writer, clientName);
                         break;
                     case 3:
-                        Console.WriteLine($"[INFO] PUT command received");
-                        filename = reader.ReadString();
+                        Console.WriteLine($"[INFO][{clientName}] PUT command received");
+                        fullPath = Path.Combine(localPath, Path.GetFileName(reader.ReadString()));
                         long filesize = reader.ReadInt64();
-                        HandlePut(filename, filesize, reader, writer);
+                        HandlePut(fullPath, filesize, reader, writer);
                         break;
                     case 4:
-                        Console.WriteLine($"[INFO] DELETE command received");
-                        filename = reader.ReadString();
-                        HandleDelete(filename, writer);
+                        Console.WriteLine($"[INFO][{clientName}] DELETE command received");
+                        fullPath = Path.Combine(localPath, Path.GetFileName(reader.ReadString()));
+                        HandleDelete(fullPath, writer);
                         break;
                     case 5:
-                        Console.WriteLine($"[INFO] INFO command received");
-                        filename = reader.ReadString();
-                        HandleInfo(filename, writer);
+                        Console.WriteLine($"[INFO][{clientName}] INFO command received");
+                        fullPath = Path.Combine(localPath, Path.GetFileName(reader.ReadString()));
+                        HandleInfo(fullPath, writer);
                         break;
                     case 0:
                         isConnected = false;
-                        Console.WriteLine($"[INFO] Closing the connection. Command id {commandId}");
+                        Console.WriteLine($"[INFO][{clientName}] Closing the connection. Command id {commandId}");
+                        break;
+                    default:
+                        Console.WriteLine($"Unknown command");
                         break;
                 }
             }
             catch (EndOfStreamException e)
             {
-                Console.WriteLine($"[ERROR] Stream Error: {e.Message}");
+                Console.WriteLine($"[ERROR][{clientName}] Stream Error: {e.Message}");
                 isConnected = false;
+                writer.Close();
+                reader.Close();
             }
             catch (Exception e)
             {
-                Console.WriteLine($"[ERROR] Error arose: {e.Message}");
+                Console.WriteLine($"[ERROR][{clientName}] Error arose: {e.Message}");
                 isConnected = false;
+                writer.Close();
+                reader.Close();
             }
-        } client.Close();
+        } 
+        client.Close();
+        writer.Close();
+        reader.Close();
     }
 
-    private static void HandlePut(string filename, long filesize, BinaryReader reader, BinaryWriter writer)
+    private static void HandlePut(string path, long filesize, BinaryReader reader, BinaryWriter writer)
     {
-        string path = Path.Combine(StoragePath, filename);
-
+        var client = Path.GetDirectoryName(path);
         try
         {
             using (FileStream fs = File.Create(path))
@@ -116,26 +129,26 @@ class Server
                     Console.Write($"\rProgress: {totalBytesRead}/{filesize}");
                 }
                 writer.Write(true);
-                writer.Write("\n[SERVER] File uploaded!");
-                Console.WriteLine("\n[SUCCESS] File uploaded!");
+                writer.Write($"\n[SERVER] File uploaded!");
+                Console.WriteLine($"\n[SUCCESS][{client}] File uploaded!");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[ERROR] Something went wrong: {ex.Message}");
+            Console.WriteLine($"[ERROR][{client}] Something went wrong: {ex.Message}");
             writer.Write(false);
             writer.Write($"[Server] Something went wrong: {ex.Message}");
             File.Delete(path);
         }
     }
 
-    private static void HandleGet(string filename, BinaryWriter writer)
+    private static void HandleGet(string path, BinaryWriter writer)
     {
-        string path = Path.Combine(StoragePath, filename);
+        var client = Path.GetDirectoryName(path);
         if (!File.Exists(path))
         {
             writer.Write(false);
-            writer.Write("[ERROR] The specified file does not exist. Error code 100.");
+            writer.Write($"[ERROR] The specified file does not exist. Error code 100.");
             return;
         }
         
@@ -155,62 +168,61 @@ class Server
                 writer.Flush();
             }
         }
-        Console.WriteLine("[INFO] File transmission complete");
+        Console.WriteLine($"[INFO][{Path.GetFileName(client)}] File transmission complete");
     }
 
-    private static void HandleList(BinaryWriter writer)
+    private static void HandleList(BinaryWriter writer, string clientName)
     {
         writer.Write(true);
 
-        string[] files = Directory.GetFiles(StoragePath);
+        string[] files = Directory.GetFiles(Path.Combine(Root, clientName));
         writer.Write(files.Length);
         foreach (string file in files)
         {
             writer.Write(Path.GetFileName(file));
         }
-        Console.WriteLine("[INFO] LIST operation executed");
+        Console.WriteLine($"[INFO][{clientName}] LIST operation executed");
     }
 
-    private static void HandleDelete(string filename, BinaryWriter writer)
+    private static void HandleDelete(string path, BinaryWriter writer)
     {
-        string path = Path.Combine(StoragePath, filename);
+        var client = Path.GetDirectoryName(path);
         if (!File.Exists(path))
         {
             writer.Write(false);
-            writer.Write("[ERROR] The specified file does not exist. Error code 100.");
+            writer.Write($"[ERROR] The specified file does not exist. Error code 100.");
             return;
         }
         
         try
         {
             File.Delete(path);
-            Console.WriteLine($"[INFO] {Path.GetFileName(path)} deleted successfully");
+            Console.WriteLine($"[INFO][{Path.GetFileName(client)}] {Path.GetFileName(path)} deleted successfully");
             writer.Write(true);
             writer.Write($"File {Path.GetFileName(path)} deleted successfully");
         }
         catch (IOException ex)
         {
-            Console.WriteLine($"[ERROR] File is accessed by another process: {ex.Message}");
+            Console.WriteLine($"[ERROR][{Path.GetFileName(client)}] File is accessed by another process: {ex.Message}");
             writer.Write(false);
             writer.Write($"[ERROR] File is accessed by another process: {ex.Message}");
         }
         catch (UnauthorizedAccessException ex)
         {
-            Console.WriteLine($"[ERROR] No rights to access this file: {ex.Message}");
+            Console.WriteLine($"[ERROR][{Path.GetFileName(client)}] No rights to access this file: {ex.Message}");
             writer.Write(false);
             writer.Write($"[ERROR] No rights to access this file: {ex.Message}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[ERROR] Something went wrong: {ex.Message}");
+            Console.WriteLine($"[ERROR][{Path.GetFileName(client)}] Something went wrong: {ex.Message}");
             writer.Write(false);
             writer.Write($"[ERROR] Something went wrong: {ex.Message}");
         }
     }
 
-    private static void HandleInfo(string filename, BinaryWriter writer)
+    private static void HandleInfo(string path, BinaryWriter writer)
     {
-        string path = Path.Combine(StoragePath, filename);
         if (!File.Exists(path))
         {
             writer.Write(false);
@@ -236,7 +248,7 @@ class Server
         else
         {
             writer.Write(false);
-            writer.Write($"[ERROR] File {filename} metadata is not available. Error code 101");
+            writer.Write($"[ERROR] File {Path.GetFileName(path)} metadata is not available. Error code 101");
         }
     }
 }

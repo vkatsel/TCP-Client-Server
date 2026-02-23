@@ -1,2 +1,0 @@
-﻿Hello, world! 
-Please, do not waste the stream resource by transferring the dummy files! 
