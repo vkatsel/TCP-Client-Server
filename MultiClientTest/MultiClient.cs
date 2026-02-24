@@ -6,7 +6,7 @@ namespace MultiClientTest;
 
 class MultiClient
 {
-    static void Main(string[] args)
+    static void Main()
     {
         IPAddress ipAddress = IPAddress.Loopback;
         int port = 1500;

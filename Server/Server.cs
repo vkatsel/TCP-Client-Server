@@ -9,7 +9,7 @@ class Server
                                     "Please, enter your name to continue: ";
     private static readonly string Root = Directory.GetCurrentDirectory();
     private static ConcurrentDictionary<string, int> _serverStats = new ConcurrentDictionary<string, int>();
-    static void Main(string[] args)
+    static void Main()
     {
         IPAddress serverIp = IPAddress.Loopback;
         int serverPort = 1500;
@@ -59,8 +59,7 @@ class Server
                     Console.WriteLine("[INFO] Shutting down the server...");
                     server.Stop(); 
                     Environment.Exit(0); 
-                    return;
-            
+                    break;
                 default:
                     Console.WriteLine("[INFO] Unknown admin command.");
                     break;
@@ -93,20 +92,20 @@ class Server
                 {
                     case 1:
                         Console.WriteLine($"[INFO][{clientName}] GET command received. ");
-                        _serverStats.AddOrUpdate("GET", 1, (key, oldValue) => oldValue + 1);
+                        _serverStats.AddOrUpdate("GET", 1, (_, oldValue) => oldValue + 1);
                         
                         fullPath = Path.Combine(localPath, Path.GetFileName(reader.ReadString()));
                         HandleGet(fullPath, writer, clientName);
                         break;
                     case 2:
                         Console.WriteLine($"[INFO][{clientName}] LIST command received");
-                        _serverStats.AddOrUpdate("LIST", 1, (key, oldValue) => oldValue + 1);
+                        _serverStats.AddOrUpdate("LIST", 1, (_, oldValue) => oldValue + 1);
                         
                         HandleList(writer, clientName);
                         break;
                     case 3:
                         Console.WriteLine($"[INFO][{clientName}] PUT command received");
-                        _serverStats.AddOrUpdate("PUT", 1, (key, oldValue) => oldValue + 1);
+                        _serverStats.AddOrUpdate("PUT", 1, (_, oldValue) => oldValue + 1);
                         
                         fullPath = Path.Combine(localPath, Path.GetFileName(reader.ReadString()));
                         long filesize = reader.ReadInt64();
@@ -114,14 +113,14 @@ class Server
                         break;
                     case 4:
                         Console.WriteLine($"[INFO][{clientName}] DELETE command received");
-                        _serverStats.AddOrUpdate("DELETE", 1, (key, oldValue) => oldValue + 1);
+                        _serverStats.AddOrUpdate("DELETE", 1, (_, oldValue) => oldValue + 1);
                         
                         fullPath = Path.Combine(localPath, Path.GetFileName(reader.ReadString()));
                         HandleDelete(fullPath, writer, clientName);
                         break;
                     case 5:
                         Console.WriteLine($"[INFO][{clientName}] INFO command received");
-                        _serverStats.AddOrUpdate("INFO", 1, (key, oldValue) => oldValue + 1);
+                        _serverStats.AddOrUpdate("INFO", 1, (_, oldValue) => oldValue + 1);
                         
                         fullPath = Path.Combine(localPath, Path.GetFileName(reader.ReadString()));
                         HandleInfo(fullPath, writer);
@@ -281,11 +280,11 @@ class Server
         {
             var metaData = new 
             {
-                Name = fileInfo.Name,
+                fileInfo.Name,
                 Size = fileInfo.Length,
                 Created = fileInfo.CreationTimeUtc,
                 Modified = fileInfo.LastWriteTimeUtc,
-                Extension = fileInfo.Extension
+                fileInfo.Extension
             };
             string json = System.Text.Json.JsonSerializer.Serialize(metaData);
             writer.Write(true);
