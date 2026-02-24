@@ -82,6 +82,7 @@ class Server
 
         if (!Directory.Exists(localPath)) Directory.CreateDirectory(localPath);
         
+        client.ReceiveTimeout = 60000;
         while (isConnected)
         {
             try
