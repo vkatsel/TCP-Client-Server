@@ -18,14 +18,17 @@ class Client
         try
         {
             Directory.CreateDirectory("Storage");
-            TcpClient client = new TcpClient(IPAddress.Loopback.ToString(), 1234);
+            TcpClient client = new TcpClient(IPAddress.Loopback.ToString(), 1500);
             NetworkStream ns = client.GetStream();
             BinaryWriter writer = new BinaryWriter(ns);
             BinaryReader reader = new BinaryReader(ns);
 
-            reader.ReadString();
+            Console.WriteLine(reader.ReadString());
+            var username = Console.ReadLine();
+            username = String.IsNullOrWhiteSpace(username) ? "Anonymous" : username;
+            writer.Write(username);
             
-            while (true)
+            while (client.Connected)
             {
                 Thread.Sleep(2000);
                 Console.WriteLine(Manual);
@@ -112,6 +115,7 @@ class Client
                         break;
                     case "EXIT":
                         Console.WriteLine("Closing the connection...");
+                        writer.Write(0);
                         client.Close();
                         return;
                     default:
@@ -123,6 +127,10 @@ class Client
         catch (SocketException e)
         {
             Console.WriteLine($"Connection failed: {e.Message}");
+        }
+        catch (IOException) 
+        {
+            Console.WriteLine("\n[ERROR] Connection to the server was lost.");
         }
     }
 
