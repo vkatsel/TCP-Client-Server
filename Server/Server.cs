@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+﻿using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 namespace Server;
@@ -8,6 +8,7 @@ class Server
     private const string Greeting = "Welcome to the server! ✪ ω ✪" +
                                     "Please, enter your name to continue: ";
     private static readonly string Root = Directory.GetCurrentDirectory();
+    private static ConcurrentDictionary<string, int> _serverStats = new ConcurrentDictionary<string, int>();
     static void Main(string[] args)
     {
         IPAddress serverIp = IPAddress.Loopback;
@@ -19,6 +20,12 @@ class Server
         IPEndPoint localEndPoint = (IPEndPoint)server.LocalEndpoint;
         Console.WriteLine("[INFO] The server is started!");
         Console.WriteLine($"[INFO] Listening on {localEndPoint.Address}:{localEndPoint.Port}");
+        Console.WriteLine("Available Admin Commands:" +
+                          "1. stop - stops the server" +
+                          "2. info - prints out the statistics");
+        
+        Thread readingThread = new Thread(() => HandleAdminCommands(server));
+        readingThread.Start();
 
         while (true)
         {
@@ -27,6 +34,37 @@ class Server
 
             Thread thread = new Thread(() => HandleClient(client));
             thread.Start();
+        }
+    }
+
+    static void HandleAdminCommands(TcpListener server)
+    {
+        while (true)
+        {
+            string input = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(input)) continue;
+
+            switch (input.Trim().ToLower())
+            {
+                case "stats":
+                    Console.WriteLine("\n=== SERVER STATISTICS ===");
+                    foreach (var stat in _serverStats)
+                    {
+                        Console.WriteLine($"- {stat.Key}: {stat.Value} calls");
+                    }
+                    Console.WriteLine("=========================\n");
+                    break;
+            
+                case "stop":
+                    Console.WriteLine("[INFO] Shutting down the server...");
+                    server.Stop(); 
+                    Environment.Exit(0); 
+                    return;
+            
+                default:
+                    Console.WriteLine("[INFO] Unknown admin command.");
+                    break;
+            }
         }
     }
 
@@ -54,26 +92,36 @@ class Server
                 {
                     case 1:
                         Console.WriteLine($"[INFO][{clientName}] GET command received. ");
+                        _serverStats.AddOrUpdate("GET", 1, (key, oldValue) => oldValue + 1);
+                        
                         fullPath = Path.Combine(localPath, Path.GetFileName(reader.ReadString()));
-                        HandleGet(fullPath, writer);
+                        HandleGet(fullPath, writer, clientName);
                         break;
                     case 2:
                         Console.WriteLine($"[INFO][{clientName}] LIST command received");
+                        _serverStats.AddOrUpdate("LIST", 1, (key, oldValue) => oldValue + 1);
+                        
                         HandleList(writer, clientName);
                         break;
                     case 3:
                         Console.WriteLine($"[INFO][{clientName}] PUT command received");
+                        _serverStats.AddOrUpdate("PUT", 1, (key, oldValue) => oldValue + 1);
+                        
                         fullPath = Path.Combine(localPath, Path.GetFileName(reader.ReadString()));
                         long filesize = reader.ReadInt64();
-                        HandlePut(fullPath, filesize, reader, writer);
+                        HandlePut(fullPath, filesize, reader, writer, clientName);
                         break;
                     case 4:
                         Console.WriteLine($"[INFO][{clientName}] DELETE command received");
+                        _serverStats.AddOrUpdate("DELETE", 1, (key, oldValue) => oldValue + 1);
+                        
                         fullPath = Path.Combine(localPath, Path.GetFileName(reader.ReadString()));
-                        HandleDelete(fullPath, writer);
+                        HandleDelete(fullPath, writer, clientName);
                         break;
                     case 5:
                         Console.WriteLine($"[INFO][{clientName}] INFO command received");
+                        _serverStats.AddOrUpdate("INFO", 1, (key, oldValue) => oldValue + 1);
+                        
                         fullPath = Path.Combine(localPath, Path.GetFileName(reader.ReadString()));
                         HandleInfo(fullPath, writer);
                         break;
@@ -106,9 +154,8 @@ class Server
         reader.Close();
     }
 
-    private static void HandlePut(string path, long filesize, BinaryReader reader, BinaryWriter writer)
+    private static void HandlePut(string path, long filesize, BinaryReader reader, BinaryWriter writer, string client)
     {
-        var client = Path.GetDirectoryName(path);
         try
         {
             using (FileStream fs = File.Create(path))
@@ -142,9 +189,8 @@ class Server
         }
     }
 
-    private static void HandleGet(string path, BinaryWriter writer)
+    private static void HandleGet(string path, BinaryWriter writer, string client)
     {
-        var client = Path.GetDirectoryName(path);
         if (!File.Exists(path))
         {
             writer.Write(false);
@@ -184,9 +230,8 @@ class Server
         Console.WriteLine($"[INFO][{clientName}] LIST operation executed");
     }
 
-    private static void HandleDelete(string path, BinaryWriter writer)
+    private static void HandleDelete(string path, BinaryWriter writer, string client)
     {
-        var client = Path.GetDirectoryName(path);
         if (!File.Exists(path))
         {
             writer.Write(false);

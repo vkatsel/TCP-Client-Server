@@ -24,9 +24,11 @@ class Client
             BinaryReader reader = new BinaryReader(ns);
 
             Console.WriteLine(reader.ReadString());
-            writer.Write("Vadym");
+            var username = Console.ReadLine();
+            username = String.IsNullOrWhiteSpace(username) ? "Anonymous" : username;
+            writer.Write(username);
             
-            while (true)
+            while (client.Connected)
             {
                 Thread.Sleep(2000);
                 Console.WriteLine(Manual);
@@ -113,6 +115,7 @@ class Client
                         break;
                     case "EXIT":
                         Console.WriteLine("Closing the connection...");
+                        writer.Write(0);
                         client.Close();
                         return;
                     default:
@@ -124,6 +127,10 @@ class Client
         catch (SocketException e)
         {
             Console.WriteLine($"Connection failed: {e.Message}");
+        }
+        catch (IOException) 
+        {
+            Console.WriteLine("\n[ERROR] Connection to the server was lost.");
         }
     }
 
